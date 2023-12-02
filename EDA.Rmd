@@ -50,4 +50,11 @@ ggplot(proportions, aes(x = svy_year, y = percentage, fill = bp_control_140_90))
 
 ```
 
+## BP SYS vs covariates
+
+Ranked cholesterol 
+```{r}
+nhanes_data$chol_total_rank <- dense_rank(nhanes_data$chol_total)
+ggplot(data = nhanes_data) + geom_point(aes(x = chol_total_rank, y = bp_sys_mean, color = bp_control_140_90))
+```
 
