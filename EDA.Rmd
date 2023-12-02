@@ -1,0 +1,53 @@
+---
+title: "Exploratory data analysis"
+author: "Xiaoting Chen"
+date: "2023-12-01"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Prep
+
+
+```{r}
+#library(cardioStatsUSA)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+# raw data
+load("~/Documents/research/ENAR/nhanes_data.rda")
+
+# data dictionary
+load("~/Documents/research/ENAR/nhanes_key.rda")
+load("~/Documents/research/ENAR/key_guide.rda")
+```
+
+
+## Outcome distribution
+
+```{r}
+proportions <- nhanes_data %>%
+  group_by(svy_year, bp_control_140_90) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+# Create a stacked bar plot
+ggplot(proportions, aes(x = svy_year, y = percentage, fill = bp_control_140_90)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "BP Control (140/90) Percentage",
+       x = "Survey Year",
+       y = "Percentage") +
+  scale_fill_manual(values = c("Yes" = "blue", "No" = "red")) +
+  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
