@@ -1,0 +1,174 @@
+---
+title: "data_preprocess"
+author: "Xiaoting Chen"
+date: "2023-12-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## packages
+
+
+```{r}
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(haven)
+```
+
+## data
+
+### Basic dataset from ENAR official
+```{r}
+load("~/Documents/research/ENAR/data/nhanes_data.rda")
+
+# data dictionary
+load("~/Documents/research/ENAR/data/nhanes_key.rda")
+load("~/Documents/research/ENAR/data/key_guide.rda")
+```
+
+
+### Additional covariates
+
+read in data files
+```{r}
+filenames <- list.files(path = "~/Documents/research/ENAR/data",
+                        pattern = "*.XPT",
+                        full.names = TRUE)
+ldf <- lapply(filenames, read_xpt)
+```
+
+rename data files
+```{r}
+# ALQ
+for (i in 1:10) {
+  assign(paste("ALQ",i, sep = "_"), ldf[[i]])
+}
+
+# DEMO
+for (i in 11:20) {
+  assign(paste("DEMO",(i-10), sep = "_"), ldf[[i]])
+}
+
+# SMQ
+for (i in 21:30) {
+  assign(paste("SMQ",i-20, sep = "_"), ldf[[i]])
+}
+```
+
+
+select variables of interest
+
+```{r}
+# ALQ130 - Avg # alcoholic drinks/day - past 12 mos
+
+ALQ_1 = ALQ_1[ , c("SEQN", "ALQ130")]
+ALQ_2 = ALQ_2[ , c("SEQN", "ALQ130")]
+ALQ_3 = ALQ_3[ , c("SEQN", "ALQ130")]
+ALQ_4 = ALQ_4[ , c("SEQN", "ALQ130")]
+ALQ_5 = ALQ_5[ , c("SEQN", "ALQ130")]
+ALQ_6 = ALQ_6[ , c("SEQN", "ALQ130")]
+ALQ_7 = ALQ_7[ , c("SEQN", "ALQ130")]
+ALQ_8 = ALQ_8[ , c("SEQN", "ALQ130")]
+ALQ_9 = ALQ_9[ , c("SEQN", "ALQ130")]
+ALQ_10 = ALQ_10[ , c("SEQN", "ALQ130")]
+```
+
+```{r}
+# SMQ020 - Smoked at least 100 cigarettes in life
+
+SMQ_1 = SMQ_1[ , c("SEQN", "SMQ020")]
+SMQ_2 = SMQ_2[ , c("SEQN", "SMQ020")]
+SMQ_3 = SMQ_3[ , c("SEQN", "SMQ020")]
+SMQ_4 = SMQ_4[ , c("SEQN", "SMQ020")]
+SMQ_5 = SMQ_5[ , c("SEQN", "SMQ020")]
+SMQ_6 = SMQ_6[ , c("SEQN", "SMQ020")]
+SMQ_7 = SMQ_7[ , c("SEQN", "SMQ020")]
+SMQ_8 = SMQ_8[ , c("SEQN", "SMQ020")]
+SMQ_9 = SMQ_9[ , c("SEQN", "SMQ020")]
+SMQ_10 = SMQ_10[ , c("SEQN", "SMQ020")]
+```
+
+```{r}
+# family income ratio: INDFMPIR
+# education: DMDEDUC2
+# marital status: 17-20: DMDMARTZ; others: DMDMARTL
+
+DEMO_1 = DEMO_1[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_2 = DEMO_2[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_3 = DEMO_3[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_4 = DEMO_4[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_5 = DEMO_5[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_6 = DEMO_6[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_7 = DEMO_7[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_8 = DEMO_8[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_9 = DEMO_9[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTL")]
+DEMO_10 = DEMO_10[ , c("SEQN", "INDFMPIR","DMDEDUC2","DMDMARTZ")]
+```
+
+recategorize marital status
+```{r}
+old <- c(1,2,3,4,5,6,77,99)
+new <- c(1,2,2,2,3,1,77,99)
+
+DEMO_1$DMDMARTL[DEMO_1$DMDMARTL %in% old] = new[match(DEMO_1$DMDMARTL, old, nomatch = 0)]
+DEMO_2$DMDMARTL[DEMO_2$DMDMARTL %in% old] = new[match(DEMO_2$DMDMARTL, old, nomatch = 0)]
+DEMO_3$DMDMARTL[DEMO_3$DMDMARTL %in% old] = new[match(DEMO_3$DMDMARTL, old, nomatch = 0)]
+DEMO_4$DMDMARTL[DEMO_4$DMDMARTL %in% old] = new[match(DEMO_4$DMDMARTL, old, nomatch = 0)]
+DEMO_5$DMDMARTL[DEMO_5$DMDMARTL %in% old] = new[match(DEMO_5$DMDMARTL, old, nomatch = 0)]
+DEMO_6$DMDMARTL[DEMO_6$DMDMARTL %in% old] = new[match(DEMO_6$DMDMARTL, old, nomatch = 0)]
+DEMO_7$DMDMARTL[DEMO_7$DMDMARTL %in% old] = new[match(DEMO_7$DMDMARTL, old, nomatch = 0)]
+DEMO_8$DMDMARTL[DEMO_8$DMDMARTL %in% old] = new[match(DEMO_8$DMDMARTL, old, nomatch = 0)]
+DEMO_9$DMDMARTL[DEMO_9$DMDMARTL %in% old] = new[match(DEMO_9$DMDMARTL, old, nomatch = 0)]
+
+DEMO_10 <- DEMO_10 %>% 
+  rename(
+    DMDMARTL = DMDMARTZ
+    )
+```
+
+
+### merge
+
+rbind 10 cycles for each dataset
+```{r}
+ALQ_combined <- do.call("rbind", list(ALQ_1, ALQ_2, ALQ_3, ALQ_4, ALQ_5, ALQ_6, ALQ_7, ALQ_8, ALQ_9, ALQ_10))
+SMQ_combined <- do.call("rbind", list(SMQ_1, SMQ_2, SMQ_3, SMQ_4, SMQ_5, SMQ_6, SMQ_7, SMQ_8, SMQ_9, SMQ_10))
+DEMO_combined <- do.call("rbind", list(DEMO_1, DEMO_2, DEMO_3, DEMO_4, DEMO_5, DEMO_6, DEMO_7, DEMO_8, DEMO_9, DEMO_10))
+```
+
+merge smq, alq, demo separately into nhanes_data
+```{r}
+# rename variable of sequence number
+
+ALQ_combined <- ALQ_combined %>% 
+  rename(
+    svy_id = SEQN
+    )
+
+SMQ_combined <- SMQ_combined %>% 
+  rename(
+    svy_id = SEQN
+    )
+
+DEMO_combined <- DEMO_combined %>% 
+  rename(
+    svy_id = SEQN
+    )
+```
+
+```{r}
+merge1 <- merge(x = nhanes_data, y = DEMO_combined, by = "svy_id", all.x = TRUE)
+merge2 <- merge(x = merge1, y = ALQ_combined, by = "svy_id", all.x = TRUE)
+merge3 <- merge(x = merge2, y = SMQ_combined, by = "svy_id", all.x = TRUE)
+```
+
+export
+```{r}
+nhanes_complete_raw <- merge3
+write.csv(nhanes_complete_raw, "~/Documents/research/ENAR/data/nhanes_complete_raw.csv")
+```
