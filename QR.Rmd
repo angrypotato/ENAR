@@ -32,32 +32,124 @@ library(quantreg)
 ```{r}
 # raw data
 load("data/nhanes_data.rda")
-
 # data dictionary
 load("data/nhanes_key.rda")
 load("data/key_guide.rda")
+
+dataset.complete.raw <- read.csv("data/nhanes_complete_raw.csv")
 ```
 
 
 
 ## select covariates 
 
-- From the given `nhanes_data`: 
-
 1. `bp_sys_mean`: Systolic blood pressure (SBP), mm Hg
 2. `bp_dia_mean`: Diastolic blood pressure (DBP), mm Hg
 3. `demo_age_years`: Age, years
-4. `cc_bmi`: Body mass index, kg/m2
-5. `chol_total`: Total cholesterol, mg/dL
-6. `chol_hdl`: HDL cholesterol, mg/dL
-7. `chol_ldl`: LDL cholesterol, mg/dL
+4. `demo_gender`: Gender 
+5. `cc_bmi`: Body mass index, kg/m2
+6. `chol_total`: Total cholesterol, mg/dL
+7. `chol_hdl`: HDL cholesterol, mg/dL
+8. `chol_ldl`: LDL cholesterol, mg/dL
+9. `INDFMPIR`: Family PIR 
+10. `DMDEDUC2`: Education level - Adults 20+
+11. `DMDMARTL`: Marital status
+12. `ALQ130`: Avg # alcoholic drinks/day - past 12 mos
+13. `SMQ020`: Smoked at least 100 cigarettes in life
+ 
+
+
+```{r}
+dataset <- dataset.complete.raw[,c("svy_year","bp_sys_mean","bp_dia_mean","demo_gender","demo_age_years","cc_bmi","chol_total","chol_hdl","chol_ldl","INDFMPIR","DMDEDUC2","DMDMARTL","ALQ130","SMQ020")]
+```
+
+
+
+## EDA 
+
+
+### Change Types to category variables 
+
+```{r}
+sapply(dataset,class)
+```
 
 
 
 ```{r}
-dataset <- nhanes_data[,c("bp_sys_mean","bp_dia_mean","demo_age_years","cc_bmi","chol_total","chol_hdl","chol_ldl")]
-dataset.na <- na.omit(dataset)
+dataset$svy_year<- factor(dataset$svy_year, levels = unique(dataset$svy_year))
+
+dataset$demo_gender<- factor(dataset$demo_gender, levels = unique(dataset$demo_gender))
+dataset$cc_bmi<- factor(dataset$cc_bmi, levels = unique(dataset$cc_bmi))
+dataset$INDFMPIR<- factor(dataset$INDFMPIR, levels = unique(dataset$INDFMPIR))
+dataset$DMDEDUC2<- factor(dataset$DMDEDUC2, levels = unique(dataset$DMDEDUC2))
+dataset$DMDMARTL<- factor(dataset$DMDMARTL, levels = unique(dataset$DMDMARTL))
+dataset$ALQ130<- factor(dataset$ALQ130, levels = unique(dataset$ALQ130))
+dataset$SMQ020<- factor(dataset$SMQ020, levels = unique(dataset$SMQ020))
+summary(dataset)
 ```
+
+
+### Check the missing values 
+
+
+
+
+#### Only Keep rows have BP values 
+
+
+```{r}
+# Only dropping NAs in bp_sys_mean results in 56534 
+# Dropping NAs in both bp_sys_mean and bp_dia_mean results in 56286 
+dataset.bp <- dataset %>% drop_na(bp_sys_mean, bp_dia_mean)
+```
+
+
+
+```{r}
+# Dropping NAs in cc_bmi results in 55,121 
+# Dropping NAs in chol_total results in 55,121 
+# Dropping NAs in INDFMPIR results in 51,136
+# Dropping NAs in DMDEDUC2 results in 52,384
+# Dropping NAs in DMDMARTL results in 54,010
+# Dropping NAs in ALQ130 results in 33,216
+# Dropping NAs in SMQ020 results in 53,336 
+# Dropping NAs in chol_hdl results in 24,043
+# Dropping NAs in chol_ldl results in 24,020 
+
+
+# Dropping NAs in all above results in 12,892 
+# Dropping NAs in cc_bmi,chol_total,INDFMPIR,DMDEDUC2,DMDMARTL,ALQ130,and SMQ020 results in 12,903 
+
+dataset.test <- dataset.bp %>% drop_na(cc_bmi,chol_total,INDFMPIR,DMDEDUC2,DMDMARTL,ALQ130,SMQ020,chol_hdl,chol_ldl)
+```
+
+
+
+### Check distributions of survey year 
+
+```{r}
+ggplot(dataset.test, aes(x=svy_year)) + geom_bar() +  labs(x='svy_year')
+```
+
+
+### Some EDA plots 
+
+
+```{r}
+ggplot(dataset.test, aes(x=demo_age_years, 
+                          y=bp_sys_mean, col=cc_bmi)) + geom_point() +
+geom_smooth(method = "lm", col="blue") +
+      geom_quantile(color = "red", quantiles = 0.99)+
+  xlab("Age") + ylab("Systolic blood pressure")
+
+```
+
+
+
+
+
+
 
 
 
@@ -65,7 +157,7 @@ dataset.na <- na.omit(dataset)
 
 
 ```{r}
-rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+chol_hdl+chol_ldl, tau=0.90,data = dataset.na)
+rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total, tau=0.90,data = dataset.test)
 summary(rqfit)
 ```
 
