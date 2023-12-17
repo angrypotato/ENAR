@@ -1,0 +1,80 @@
+---
+title: "Quantile Regression"
+author: "Iris Zhang"
+date: "2023-12-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+https://drkebede.medium.com/quantile-regression-tutorial-in-r-f2eec72c132b 
+
+
+
+```{r}
+# packages
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(quantreg)
+```
+
+
+
+## load data (need to change to complete dataset)
+
+
+```{r}
+# raw data
+load("data/nhanes_data.rda")
+
+# data dictionary
+load("data/nhanes_key.rda")
+load("data/key_guide.rda")
+```
+
+
+
+## select covariates 
+
+- From the given `nhanes_data`: 
+
+1. `bp_sys_mean`: Systolic blood pressure (SBP), mm Hg
+2. `bp_dia_mean`: Diastolic blood pressure (DBP), mm Hg
+3. `demo_age_years`: Age, years
+4. `cc_bmi`: Body mass index, kg/m2
+5. `chol_total`: Total cholesterol, mg/dL
+6. `chol_hdl`: HDL cholesterol, mg/dL
+7. `chol_ldl`: LDL cholesterol, mg/dL
+
+
+
+```{r}
+dataset <- nhanes_data[,c("bp_sys_mean","bp_dia_mean","demo_age_years","cc_bmi","chol_total","chol_hdl","chol_ldl")]
+dataset.na <- na.omit(dataset)
+```
+
+
+
+## Quantile Analysis 
+
+
+```{r}
+rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+chol_hdl+chol_ldl, tau=0.90,data = dataset.na)
+summary(rqfit)
+```
+
+
+
+
+
+
+
+
+
+
