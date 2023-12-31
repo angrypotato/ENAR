@@ -22,21 +22,20 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 library(quantreg)
+library(mice)
 ```
 
 
 
-## load data (need to change to complete dataset)
+## load data (cleaned and imputed dataset)
 
 
 ```{r}
-# raw data
-load("data/nhanes_data.rda")
 # data dictionary
 load("data/nhanes_key.rda")
 load("data/key_guide.rda")
 
-dataset.complete.raw <- read.csv("data/nhanes_complete_raw.csv")
+
 ```
 
 
@@ -59,38 +58,8 @@ dataset.complete.raw <- read.csv("data/nhanes_complete_raw.csv")
  
 
 
-```{r}
-dataset <- dataset.complete.raw[,c("svy_year","bp_sys_mean","bp_dia_mean","demo_gender","demo_age_years","cc_bmi","chol_total","chol_hdl","chol_ldl","INDFMPIR","DMDEDUC2","DMDMARTL","ALQ130","SMQ020")]
-```
 
 
-
-## EDA 
-
-
-### Change Types to category variables 
-
-```{r}
-sapply(dataset,class)
-```
-
-
-
-```{r}
-dataset$svy_year<- factor(dataset$svy_year, levels = unique(dataset$svy_year))
-
-dataset$demo_gender<- factor(dataset$demo_gender, levels = unique(dataset$demo_gender))
-dataset$cc_bmi<- factor(dataset$cc_bmi, levels = unique(dataset$cc_bmi))
-dataset$INDFMPIR<- factor(dataset$INDFMPIR, levels = unique(dataset$INDFMPIR))
-dataset$DMDEDUC2<- factor(dataset$DMDEDUC2, levels = unique(dataset$DMDEDUC2))
-dataset$DMDMARTL<- factor(dataset$DMDMARTL, levels = unique(dataset$DMDMARTL))
-dataset$ALQ130<- factor(dataset$ALQ130, levels = unique(dataset$ALQ130))
-dataset$SMQ020<- factor(dataset$SMQ020, levels = unique(dataset$SMQ020))
-summary(dataset)
-```
-
-
-### Check the missing values 
 
 
 
@@ -160,13 +129,3 @@ geom_smooth(method = "lm", col="blue") +
 rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total, tau=0.90,data = dataset.test)
 summary(rqfit)
 ```
-
-
-
-
-
-
-
-
-
-
