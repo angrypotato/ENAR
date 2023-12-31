@@ -129,13 +129,3 @@ geom_smooth(method = "lm", col="blue") +
 rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total, tau=0.90,data = dataset.test)
 summary(rqfit)
 ```
-
-
-
-
-
-
-
-
-
-
