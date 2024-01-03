@@ -22,103 +22,72 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 library(quantreg)
-library(mice)
 ```
 
 
 
-## load data (cleaned and imputed dataset)
+### Load data (cleaned and imputed dataset)
 
 
 ```{r}
-# data dictionary
-load("data/nhanes_key.rda")
-load("data/key_guide.rda")
-
-
+<<<<<<< Updated upstream
+bp.data.frame <- read.csv("data/data_imputed.csv")
 ```
 
 
+### Check missing values 
 
-## select covariates 
-
-1. `bp_sys_mean`: Systolic blood pressure (SBP), mm Hg
-2. `bp_dia_mean`: Diastolic blood pressure (DBP), mm Hg
-3. `demo_age_years`: Age, years
-4. `demo_gender`: Gender 
-5. `cc_bmi`: Body mass index, kg/m2
-6. `chol_total`: Total cholesterol, mg/dL
-7. `chol_hdl`: HDL cholesterol, mg/dL
-8. `chol_ldl`: LDL cholesterol, mg/dL
-9. `INDFMPIR`: Family PIR 
-10. `DMDEDUC2`: Education level - Adults 20+
-11. `DMDMARTL`: Marital status
-12. `ALQ130`: Avg # alcoholic drinks/day - past 12 mos
-13. `SMQ020`: Smoked at least 100 cigarettes in life
- 
+```{r}
+colSums(is.na(bp.data.frame))
+```
 
 
-
-
-
-
-
-
-#### Only Keep rows have BP values 
+### Only Keep rows have BP values and individuals who are not pregnant 
 
 
 ```{r}
-# Only dropping NAs in bp_sys_mean results in 56534 
-# Dropping NAs in both bp_sys_mean and bp_dia_mean results in 56286 
-dataset.bp <- dataset %>% drop_na(bp_sys_mean, bp_dia_mean)
+dataset.bp <- bp.data.frame %>% drop_na(bp_sys_mean, bp_dia_mean)
+dataset.bp <- dataset.bp[dataset.bp$demo_pregnant == "No",]
+summary(dataset.bp)
 ```
 
+
+### Change categorical variables to factors
 
 
 ```{r}
-# Dropping NAs in cc_bmi results in 55,121 
-# Dropping NAs in chol_total results in 55,121 
-# Dropping NAs in INDFMPIR results in 51,136
-# Dropping NAs in DMDEDUC2 results in 52,384
-# Dropping NAs in DMDMARTL results in 54,010
-# Dropping NAs in ALQ130 results in 33,216
-# Dropping NAs in SMQ020 results in 53,336 
-# Dropping NAs in chol_hdl results in 24,043
-# Dropping NAs in chol_ldl results in 24,020 
-
-
-# Dropping NAs in all above results in 12,892 
-# Dropping NAs in cc_bmi,chol_total,INDFMPIR,DMDEDUC2,DMDMARTL,ALQ130,and SMQ020 results in 12,903 
-
-dataset.test <- dataset.bp %>% drop_na(cc_bmi,chol_total,INDFMPIR,DMDEDUC2,DMDMARTL,ALQ130,SMQ020,chol_hdl,chol_ldl)
+dataset.bp$svy_year <- factor(dataset.bp$svy_year, levels = unique(dataset.bp$svy_year))
+dataset.bp$demo_pregnant<- factor(dataset.bp$demo_pregnant, levels = unique(dataset.bp$demo_pregnant))
+dataset.bp$htn_jnc7<- factor(dataset.bp$htn_jnc7, levels = unique(dataset.bp$htn_jnc7))
+dataset.bp$demo_gender<- factor(dataset.bp$demo_gender, levels = unique(dataset.bp$demo_gender))
+dataset.bp$cc_bmi<- factor(dataset.bp$cc_bmi, levels = unique(dataset.bp$cc_bmi))
+dataset.bp$DMDEDUC2<- factor(dataset.bp$DMDEDUC2, levels = unique(dataset.bp$DMDEDUC2))
+dataset.bp$DMDMARTL<- factor(dataset.bp$DMDMARTL, levels = unique(dataset.bp$DMDMARTL))
+dataset.bp$SMQ020<- factor(dataset.bp$SMQ020, levels = unique(dataset.bp$SMQ020))
+=======
+# raw data
+bp.data.frame <- read.csv("data/dataset_clean.csv")
+>>>>>>> Stashed changes
 ```
+
+
+
+### Exclude individuals who have not been diagnosed as hypertension 
+
+
+```{r}
+dataset.hypertension <- dataset.bp[dataset.bp$htn_jnc7 == "Yes",]
+summary(dataset.hypertension)
+```
+
 
 
 
 ### Check distributions of survey year 
 
 ```{r}
-ggplot(dataset.test, aes(x=svy_year)) + geom_bar() +  labs(x='svy_year')
+ggplot(dataset.hypertension, aes(x=svy_year)) + geom_bar() +  labs(x='Survey Year', title = "Individuals who have been diagnosed with Hypertension by JNC7 guideline")
 ```
-
-
-### Some EDA plots 
-
-
-```{r}
-ggplot(dataset.test, aes(x=demo_age_years, 
-                          y=bp_sys_mean, col=cc_bmi)) + geom_point() +
-geom_smooth(method = "lm", col="blue") +
-      geom_quantile(color = "red", quantiles = 0.99)+
-  xlab("Age") + ylab("Systolic blood pressure")
-
-```
-
-
-
-
-
-
 
 
 
@@ -126,6 +95,606 @@ geom_smooth(method = "lm", col="blue") +
 
 
 ```{r}
-rqfit <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total, tau=0.90,data = dataset.test)
-summary(rqfit)
+## Correlation 
+library(corrplot)
+corr_data <- dataset.hypertension %>% select(demo_gender,demo_age_years,cc_bmi,chol_total,chol_hdl,chol_ldl,INDFMPIR,DMDEDUC2,DMDMARTL,ALQ130,SMQ020)
+
+levels(corr_data$demo_gender) <- c(0,1)
+#levels(corr_data$svy_year) <- c(0,1,2,3,4,5,6,7,8,9)
+levels(corr_data$cc_bmi) <- c(0,1,2,3)
+
+corr_data <- sapply(corr_data, as.numeric)
+corrplot(cor(corr_data))
 ```
+
+
+
+### Regression models 
+
+```{r}
+# OLS (mean)
+ols_sys <-  lm(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, data = dataset.hypertension)
+summary(ols_sys)
+ols_dia <-  lm(bp_dia_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, data = dataset.hypertension)
+summary(ols_dia)
+```
+
+
+
+
+```{r}
+# 50% Quantile 
+rq50_sys <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.5,data = dataset.hypertension)
+summary(rq50_sys)
+
+rq50_dia <- rq(bp_dia_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.5,data = dataset.hypertension)
+summary(rq50_dia)
+```
+
+
+```{r}
+# 90% Quantile 
+rq90_sys <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.9,data = dataset.hypertension)
+summary(rq90_sys)
+rq90_dia <- rq(bp_dia_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.9,data = dataset.hypertension)
+summary(rq90_dia)
+```
+
+
+
+```{r}
+# First EVA Quantile 
+rq85_sys <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.85,data = dataset.hypertension)
+summary(rq85_sys)
+#rq85_dia <- rq(bp_dia_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.85,data = dataset.hypertension)
+#summary(rq85_dia)
+```
+
+
+```{r}
+# Second EVA Quantile 
+rq92_sys <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.92,data = dataset.hypertension)
+summary(rq92_sys)
+#rq92_dia <- rq(bp_dia_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.92,data = dataset.hypertension)
+#summary(rq92_dia)
+```
+
+
+
+
+### Plots for QR 
+
+
+
+#### Age 
+
+```{r}
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = demo_gender)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm",se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = DMDEDUC2)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm",se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = cc_bmi)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm",se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = DMDMARTL)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm",se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = SMQ020)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm",se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+```
+
+
+
+
+
+#### Total Cholesterol Density
+
+```{r}
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = demo_gender)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = DMDEDUC2)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = cc_bmi)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = DMDMARTL)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = SMQ020)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+```
+
+
+
+#### Poverty to Income Ratio 
+
+```{r}
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = demo_gender)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Family PIR") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = DMDEDUC2)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Family PIR") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = cc_bmi)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Family PIR") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = DMDMARTL)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Family PIR") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = SMQ020)) +
+  geom_point(aes(color = demo_gender), size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Family PIR") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+```
+
+
+
+
+
+## Conduct analysis for both before 2013 and after 2013 
+
+
+```{r}
+before13.years <- c("1999-2000","2001-2002", "2003-2004", "2005-2006", "2007-2008", "2009-2010", "2011-2012")
+dataset.before13 <- dataset.hypertension[dataset.hypertension$svy_year %in% before13.years,]
+after13.years <- c("2013-2014","2015-2016","2017-2020")
+dataset.after13 <- dataset.hypertension[dataset.hypertension$svy_year %in% after13.years,]
+```
+
+
+```{r}
+# OLS (mean)
+ols_sys.before13 <-  lm(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, data = dataset.before13)
+summary(ols_sys.before13)
+ols_sys.after13 <-  lm(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, data = dataset.after13)
+summary(ols_sys.after13)
+```
+
+
+
+
+
+```{r}
+# 50% Quantile 
+rq50_sys.before13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.5,data = dataset.before13)
+summary(rq50_sys.before13)
+
+rq50_sys.after13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.5,data = dataset.after13)
+summary(rq50_sys.after13)
+```
+
+
+```{r}
+# 90% Quantile 
+rq90_sys.before13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.9,data = dataset.before13)
+summary(rq90_sys.before13)
+
+rq90_sys.after13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.9,data = dataset.after13)
+summary(rq90_sys.after13)
+```
+
+
+
+```{r}
+# 85% Quantile 
+rq85_sys.before13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.85,data = dataset.before13)
+summary(rq85_sys.before13)
+
+rq85_sys.after13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.85,data = dataset.after13)
+summary(rq85_sys.after13)
+```
+
+
+
+
+
+
+```{r}
+# 92% Quantile 
+rq92_sys.before13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.92,data = dataset.before13)
+summary(rq92_sys.before13)
+
+rq92_sys.after13 <- rq(bp_sys_mean ~ demo_age_years+cc_bmi+chol_total+demo_gender+chol_hdl+INDFMPIR+DMDEDUC2+DMDMARTL+ALQ130+SMQ020, tau=0.92,data = dataset.after13)
+summary(rq92_sys.after13)
+```
+
+
+
+
+### Plots to compare before and after 2013 
+
+
+```{r}
+dataset.hypertension$indicator2013 <- ifelse(dataset.hypertension$svy_year %in% before13.years, "1999-2012", "2013-2020")
+
+### Age ###
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, linetype = indicator2013, shape=indicator2013)) +
+  geom_point(aes(color = indicator2013), size = 0.5) +
+  geom_smooth(method = "lm", aes(color = "OLS"), size = 1.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 1.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 1.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 1.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 1.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Age") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+
+### Total Cholesterol Density ###
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, linetype = indicator2013, shape=indicator2013)) +
+  geom_point(aes(color = indicator2013), size = 0.5) +
+  geom_smooth(method = "lm", aes(color = "OLS"), size = 1.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 1.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 1.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 1.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 1.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+
+### Poverty to Income Ratio ###
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, linetype = indicator2013, shape=indicator2013)) +
+  geom_point(aes(color = indicator2013), size = 0.5) +
+  geom_smooth(method = "lm", aes(color = "OLS"), size = 1.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 1.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 1.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 1.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 1.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  xlab("Poverty to Income Ratio") + ylab("Systolic blood pressure")+
+  labs(color = "Regression Lines") 
+
+```
+
+```{r}
+dataset.hypertension$DMDEDUC2 <- factor(dataset.hypertension$DMDEDUC2, levels=c("1","2","3","4","5"))
+levels(dataset.hypertension$DMDEDUC2) <- c("Less than 9th Grade", "9-11th Grade", "High School Grad", "College or AA degree", "College Graduate or above")
+
+dataset.hypertension$DMDMARTL <- factor(dataset.hypertension$DMDMARTL, levels=c("1","2","3"))
+levels(dataset.hypertension$DMDMARTL) <- c("Married/Living with Partner", "Widowed/Divorced/Separated", "Never married")
+
+levels(dataset.hypertension$SMQ020) <- c("No smoking", "Smoking")
+```
+
+
+
+
+```{r}
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, color = demo_gender, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~demo_gender, scales = "fixed") +  
+  xlab("Age") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, color = DMDEDUC2, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDEDUC2, scales = "fixed") +  
+  xlab("Age") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, color = cc_bmi, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~cc_bmi, scales = "fixed") +  
+  xlab("Age") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, color = DMDMARTL, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDMARTL, scales = "fixed") +  
+  xlab("Age") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = demo_age_years, y = bp_sys_mean, color = SMQ020, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~SMQ020, scales = "fixed") +  
+  xlab("Age") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+```
+
+
+
+
+
+
+```{r}
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, color = demo_gender, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~demo_gender, scales = "fixed") +  
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, color = DMDEDUC2, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDEDUC2, scales = "fixed") +  
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, color = cc_bmi, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~cc_bmi, scales = "fixed") +  
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, color = DMDMARTL, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDMARTL, scales = "fixed") +  
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = chol_total, y = bp_sys_mean, color = SMQ020, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~SMQ020, scales = "fixed") +  
+  xlab("Total Cholesterol Density") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+```
+
+
+
+
+
+```{r}
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, color = demo_gender, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~demo_gender, scales = "fixed") +  
+  xlab("Family PIR") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, color = DMDEDUC2, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDEDUC2, scales = "fixed") +  
+  xlab("Family PIR") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, color = cc_bmi, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~cc_bmi, scales = "fixed") +  
+  xlab("Family PIR") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, color = DMDMARTL, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~DMDMARTL, scales = "fixed") +  
+  xlab("Family PIR") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+
+ggplot(dataset.hypertension, aes(x = INDFMPIR, y = bp_sys_mean, color = SMQ020, linetype = indicator2013, shape = indicator2013)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = "lm", se=FALSE, aes(color = "OLS"), size = 0.5) +
+  geom_quantile(aes(color = "25% Quantile"), quantiles = 0.25, size = 0.5) +
+  geom_quantile(aes(color = "50% Quantile"), quantiles = 0.50, size = 0.5) +
+  geom_quantile(aes(color = "85% Quantile"), quantiles = 0.85, size = 0.5) +
+  geom_quantile(aes(color = "92% Quantile"), quantiles = 0.92, size = 0.5) +
+  scale_color_manual(values = c("OLS"="red","25% Quantile" = "black", "50% Quantile" = "#33a02c", "85% Quantile" = "#ff7f00", "92% Quantile" = "#6a3d9a")) +
+  facet_wrap(~SMQ020, scales = "fixed") +  
+  xlab("Family PIR") + ylab("Systolic blood pressure") +
+  labs(color = "Regression Lines")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
