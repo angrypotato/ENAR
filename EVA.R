@@ -2,7 +2,7 @@
 ## EVA
 ## Authors: Zoe Haskell-Craig
 ## Date Created: Dec 13th 2023
-## Last Modified: Jan. 11th 2023
+## Last Modified: Feb 26th 2024
 ##################################
 
 # packages --------
@@ -19,29 +19,40 @@ data_raw <- read_csv("data/data_imputed.csv")
 ## remove individuals with missing bp data
 data <- data_raw %>% dplyr::filter(!is.na(bp_sys_mean))
 
+## filter by individuals diagnosed with hypertension
+data_htn <- filter(data, htn_jnc7 == 'Yes')
+
+
 # Step 1: EDA ----------------
 
 ## See EDA.Rmd for more exploratory data analysis
+
 
 
 # Analysis 1 - Expected extreme BP given data 1999-2012 -----------------
 
 
 #split data by period (1999-2012)
-data_1 <- data %>% filter(svy_year %in% c("1999-2000","2001-2002","2003-2004",
+data_1 <- data_htn %>% filter(svy_year %in% c("1999-2000","2001-2002","2003-2004",
                                           "2005-2006","2007-2008","2009-2010",
                                           "2011-2012"))
 #split data by period (2013-2020)
-data_2 <- data %>% filter(svy_year %in% c("2013-2014", "2015-2016","2017-2020"))
+data_2 <- data_htn %>% filter(svy_year %in% c("2013-2014", "2015-2016","2017-2020"))
 
 ## Method a: threshold range plots ----------
-POT::tcplot(data_1$bp_sys_mean, u.range = c(120, 200)) 
-#no region is so steady but maybe between 140 -160
+par(mfrow=c(1,2))
+POT::tcplot(data_1$bp_sys_mean, u.range = c(120, 200)) #from this looks like mu = 140- 160
+
 
 
 ## Method b: mean excess plot/mean residual life plot -------
+par(mfrow=c(1,1))
 #first four waves
-POT::mrlplot(data_1$bp_sys_mean, u.range = c(120, 220)) #from this looks like mu = 160
+POT::mrlplot(data_1$bp_sys_mean, u.range = c(120, 220)) 
+abline(v = 158, lty = 2)
+abline(v = 140, lty = 2)
+abline(v = 172, lty = 2)
+#abline(v = 170)
 
 ## Method d: 90% quantile ---------
 print(quantile(data_1$bp_sys_mean, 
@@ -52,27 +63,27 @@ print(quantile(data_1$bp_sys_mean,
 
 ## estimate parameters for GPD --------------
 gpd_m1a <- fitgpd(data_1$bp_sys_mean, 
-                 threshold = 160, "mle")
+                 threshold = 140, "mle")
 
 gpd_m1b <- fitgpd(data_1$bp_sys_mean, 
-                  threshold = 140, "mle")
+                  threshold = 160, "mle")
 
 
 #model fit statistics
 gpd_m1a$logLik
 gpd_m1b$logLik
 
-#AIC m1a = 15417.89
-#AIC m1b = 49152.98
+#AIC m1a = 49182.04
+#AIC m1b = 15423.87
 
-# looks like a is the better model
+# looks like b is the better model
 
 #parameter estimates
-gpd_m1a$param
+gpd_m1b$param
 
 #parameter confidence intervals
-gpd.fiscale(gpd_m1a)
-gpd.fishape(gpd_m1a)
+gpd.fiscale(gpd_m1b)
+gpd.fishape(gpd_m1b)
 
 
 
@@ -82,26 +93,26 @@ n_per_survey_1 <- data_1 %>% group_by(svy_year) %>% count()
 npy_1 = mean(n_per_survey_1$n)
 
 par(mfrow=c(2,2))
-plot(gpd_m1a, npy = npy_1)
+plot(gpd_m1b, npy = npy_1)
 
 
 
 ## calculate return period ----------
 par(mfrow=c(1,1))
-retlev(gpd_m1a, npy = npy_1, points = T)
+retlev(gpd_m1b, npy = npy_1, points = T)
 
-return_level_1 <- retlev(gpd_m1a, npy = npy_1, points = T)
+return_level_1 <- retlev(gpd_m1b, npy = npy_1, points = T)
 return_level_1(npy_1)
 
-gpd_m1a$pat #proportion of exceedances
+gpd_m1b$pat #proportion of exceedances
 
 #probability that x > 180
-1 - pgpd(180, loc = 160, scale = 18.0923107, shape = -0.1138746)
+1 - pgpd(180, loc = 160, scale = 18.0808248, shape = -0.1136259)
 #probability that x > 200
-1 - pgpd(200, loc = 160, scale = 18.0923107, shape = -0.1138746)
+1 - pgpd(200, loc = 160, scale = 18.0808248, shape = -0.1136259)
 
 # the 99th percentile value for BP
-qgpd(p = 0.99, loc = 160, scale = 18.0923107, shape = -0.1138746)
+qgpd(p = 0.99, loc = 160, scale = 18.0808248, shape = -0.1136259)
 
 
 ## observed vs expected extreme values 2013-2020 ---------------
@@ -111,7 +122,7 @@ n_samp <- length(data_2$id)
 n_over_160 <- length(filter(data_2, bp_sys_mean > 160)$id)
 
 # expected sys > 160
-e_sys_160 <- gpd_m1a$pat * n_samp
+e_sys_160 <- gpd_m1b$pat * n_samp
 #observed sys > 160
 o_sys_160 <- n_over_160
 
@@ -125,11 +136,11 @@ chisq.test(t_160)
 
 # among observations of extreme blood pressure
 # expected sys > 180 
-e_sys_180 <- 0.3068 * n_over_160
+e_sys_180 <- 0.3066362 * n_over_160
 o_sys_180 <- length(filter(data_2, bp_sys_mean > 180)$id)
 
 # expected sys > 200 
-e_sys_200 <- 0.07831791 * n_over_160
+e_sys_200 <- 0.07824075 * n_over_160
 o_sys_200 <- length(filter(data_2, bp_sys_mean > 200)$id)
 
 # expected vs observed
