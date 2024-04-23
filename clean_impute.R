@@ -1,15 +1,15 @@
 ####################################
 ## Data Cleaning and Missing Data Imputation
 ## Date Created: Dec 29th 2023
-## Last Modified: Dec 31st 2023
-## Author: Zoe Haskell-Craig and Jianan Zhu
+## Last Modified: Apr 22, 2024
+## Author: Zoe Haskell-Craig, Jianan Zhu, Xiaoting Chen
 ####################################
 
 # packages -----------
 library(tidyverse) #data cleaning/manipulation
 library(readr) #read/write csv files
 library(mice) #missing data imputation
-
+library(dplyr) # dataframe manipulation
 
 # data ----------------
 
@@ -41,7 +41,9 @@ dataset.complete.raw <- read.csv("data/nhanes_complete_raw.csv")
 
 
 
-dataset <- dataset.complete.raw[,c("svy_year", "demo_pregnant" , "htn_jnc7" ,"bp_sys_mean","bp_dia_mean","demo_gender","demo_age_years","cc_bmi","chol_total","chol_hdl","chol_ldl","INDFMPIR","DMDEDUC2","DMDMARTL","ALQ130","SMQ020")]
+dataset <- dataset.complete.raw[,c("svy_id","svy_year", "demo_pregnant" , "htn_jnc7" ,"bp_sys_mean",
+                                   "bp_dia_mean","demo_gender","demo_age_years","cc_bmi","chol_total",
+                                   "chol_hdl","chol_ldl","INDFMPIR","DMDEDUC2","DMDMARTL","ALQ130","SMQ020")]
 
 
 # data cleaning ------------
@@ -122,11 +124,12 @@ dataset_train <- dataset_clean %>%
 ## impute missing data ------------------
 
 # remove col with row numbers/ids, blood pressure
+svy_id <- dataset_train$svy_id
 ids <- dataset_train$id #save ids
 bp_sys_mean <- dataset_train$bp_sys_mean #save bp
 bp_dia_mean <- dataset_train$bp_dia_mean #save bp
 
-dataset_train <- dataset_train %>% select(-id, -bp_dia_mean, -bp_sys_mean)
+dataset_train <- dataset_train %>% select(-svy_id, -id, -bp_dia_mean, -bp_sys_mean)
 
 imp <- mice(dataset_train, m=5, maxit=5, 
             method = c("rf", "rf", "rf", "rf", #svy year - gender
@@ -140,6 +143,7 @@ imp <- mice(dataset_train, m=5, maxit=5,
 dataset_imp <- complete(imp)
 summary(dataset_imp)
 dataset_imp$id <- ids
+dataset_imp$svy_id <- svy_id
 
 ## check imputed data performance WRT holdout observations ----------
 
@@ -206,6 +210,7 @@ dataset_final$SMQ020_orig <- dataset_clean$SMQ020
 dataset_final$chol_hdl_orig <- dataset_clean$chol_hdl
 dataset_final$chol_ldl_orig <- dataset_clean$chol_ldl
 # re-add IDs, blood pressure
+dataset_final$svy_id <- dataset_clean$svy_id
 dataset_final$id <- dataset_clean$id
 dataset_final$bp_sys_mean <- dataset_clean$bp_sys_mean
 dataset_final$bp_dia_mean <- dataset_clean$bp_dia_mean
@@ -220,6 +225,25 @@ dataset_final <- dataset_final %>%
 
 summary(dataset_final)
 
-## save imputed dataset ---------
+# save imputed data
 write_csv(dataset_final, file = "data/data_imputed.csv")
+
+
+# apply survey weights ---------
+
+## add svy_weight_mec back to dataset_final
+dat_weight <- dataset_final %>%
+  merge(dataset.complete.raw[,c('svy_weight_mec',"svy_id")], by="svy_id")
+
+## multiply weights by wave
+df_adjusted <- dat_weight %>%
+  group_by(svy_year) %>%
+  mutate(
+    scaled_weight = svy_weight_mec / min(svy_weight_mec) # scale by diviing the smallest weight
+  ) %>%
+  ungroup() %>%
+  slice(rep(1:n(), times = scaled_weight))
+
+# save weighted dataset 
+write_csv(df_adjusted, file = "data/data_weighted.csv")
 
