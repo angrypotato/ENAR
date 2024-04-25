@@ -49,14 +49,14 @@ POT::tcplot(data_1$bp_sys_mean, u.range = c(120, 200)) #from this looks like mu 
 par(mfrow=c(1,1))
 #first four waves
 POT::mrlplot(data_1$bp_sys_mean, u.range = c(120, 220)) 
-abline(v = 158, lty = 2)
+#abline(v = 158, lty = 2)
 abline(v = 140, lty = 2)
 abline(v = 172, lty = 2)
 #abline(v = 170)
 
 ## Method d: 90% quantile ---------
 print(quantile(data_1$bp_sys_mean, 
-               probs = c(0.5, 0.75, 0.85, 0.9, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99)))
+               probs = c(0.5, 0.75, 0.83, 0.85, 0.9, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99)))
 
 
 
@@ -254,4 +254,27 @@ g3 <- ggplot(data_np) +
 
 ggarrange(g1, g2, ncol = 2,
           common.legend = TRUE, legend = "right")
+
+## participants with hypertension surveyed 1999-2013
+bin_n <- round(max(data_1$bp_sys_mean) - min(data_1$bp_sys_mean))
+ggplot(data_1) +
+  geom_histogram(aes(x = bp_sys_mean, 
+                     fill = bp_sys_mean > 160), 
+                 breaks = c(70, 75, 80, 85,  90, 95,  100, 105, 110, 115,
+                            120, 125, 130, 135, 140, 145, 150, 155, 160, 165,
+                            170, 175, 180, 185, 190, 195, 200,
+                            205, 210, 215, 220, 225, 230)) +
+  scale_fill_manual(values = c( "#F4D06F", "#644375"),
+                    name = "Blood Pressure", 
+                    labels = c("<160 mm Hg", ">160 mm Hg")) +
+  xlim(76, 225) +
+  ylim(0, 2000) + 
+  labs(title = "Individuals with hypertension", 
+       subtitle = "Survey years from 1999 - 2012",
+       x = "Systolic BP (mm Hg)", y = "Num. observations") +
+  #geom_vline(xintercept = 130, color = "grey", lty = 2) + 
+  #geom_vline(xintercept = 140, color = "grey", lty = 2) +
+  theme(axis.text = element_text(size = 12),  
+        axis.title = element_text(size = 14)) #+
+  
 

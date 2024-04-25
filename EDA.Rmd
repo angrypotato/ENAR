@@ -61,7 +61,7 @@ ggplot(data = nhanes_data) + geom_point(aes(x = chol_total_rank, y = bp_sys_mean
 ## EDA for POTS
 Code from some preliminary analysis in EVA.R
 ```{r}
-load("ENAR/data/nhanes_data.rda")
+load("data/nhanes_data.rda")
 
 #split by survey year (train on 4 waves, predict prevalence on next 4 waves)
 data_train1 <- nhanes_data %>%
