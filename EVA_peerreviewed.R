@@ -1,8 +1,8 @@
 ##################################
 ## EVA for peer-reviewed paper
 ## Authors: Zoe Haskell-Craig
-## Date Created: Dec 13th 2023
-## Last Modified: Feb 26th 2024
+## Date Created: April 25th 2024
+## Last Modified: April 25th 2024
 ##################################
 #set wd based on who's running the code
 setwd("/Users/zoehaskellcraig/Documents/NYU GPH/2023-2024/ENAR 2024/ENAR")
@@ -52,9 +52,11 @@ ggplot(data = data_train) +
 
 View(table(data_train$bp_sys_mean))
 View(table(data_train$bp_sys_mean_noise))
-# Analysis step 1: determine threshold -----------------
 
-## Method a: threshold range plots ----------
+# POT traditional method -------------
+## Analysis step 1: determine threshold -----------------
+
+### Method a: threshold range plots ----------
 #par(mfrow=c(1,2))
 #POT::tcplot(data_train$bp_sys_mean, u.range = c(120, 200))
 # ERROR: observed information matrix is singular; passing std.err.type to ``expected''
@@ -66,16 +68,62 @@ POT::tcplot(data_train$bp_sys_mean_noise[1:400000], u.range = c(120, 240))
 #400,000 at sd = 5% works at 500,000 at sd = 5% works
 #500,000 at sd = 1% breaks, 400,000 at sd = 1% breaks less
 
-## Method b: mean excess plot -----------------
+### Method b: mean excess plot -----------------
 par(mfrow=c(1,1))
 POT::mrlplot(data_train$bp_sys_mean_noise[1:400000], u.range = c(120, 240)) 
 # works at noise = 1%, data = 400,000 observations but quite slow
 
-# Estimate parameters for GPD --------------
+## Estimate parameters for GPD --------------
 gpd_m1 <- fitgpd(data_train$bp_sys_mean_noise, 
                   threshold = 160, "mle")
 
 
 gpd_m1$param #scale = 15.67 > 0 so a "heavy tail" according to Frigessi, Haug & Rue
 
+# Mixture Modeling approach -------------
+
+## normal + GPD -------------------
+
+#following the recommendations of Hu & , 2018, we carry out a grid search over
+#potential threshold listed in useq to find the value which maximizes the likelihood
+#then this value is used as the initial value for the threshold in the 
+# MLE with complete likelihood (option 5)
+threshold_q <- seq(from = 140, to = 200, by = 2)
+#3 FIX:: need to double check bulk vs parametric explanation and choose phiu better
+normgpd_1 <- fnormgpd(x = data_train$bp_sys_mean_noise[1:100000],
+                      useq = threshold_q,
+                      fixedu = TRUE,
+                      phiu = TRUE) #allowing discontinuity at threshold
+
+# all parameters
+round(normgpd_1$mle, 3)
+normgpd_1$se
+
+# parameters by name
+normgpd_1$u #threshold
+normgpd_1$nmean #mean of normal component
+normgpd_1$nsd #sd of normal component
+normgpd_1$sigmau #GPD scale parameter
+normgpd_1$xi #GPD shape parameter
+
+normgpd_1$phiu #tail fraction
+normgpd_1$se.phiu #se of tail fraction estimate
+
+normgpd_2 <- fnormgpdcon(x = data_train$bp_sys_mean_noise[1:100000],
+                         useq = threshold_q,
+                         fixedu = TRUE) #no discontinuity at threshold 
+
+# parameters by name
+normgpd_2$u #threshold
+normgpd_2$nmean #mean of normal component
+normgpd_2$nsd #sd of normal component
+normgpd_2$sigmau #GPD scale parameter
+normgpd_2$xi #GPD shape parameter
+
+normgpd_2$phiu #tail fraction
+normgpd_2$se.phiu #se of tail fraction estimate
+
+### model diagnostics -------------------
+rlplot(normgpd_1)
+rlplot(normgpd_2)
 

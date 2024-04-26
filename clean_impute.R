@@ -231,6 +231,7 @@ write_csv(dataset_final, file = "data/data_imputed.csv")
 
 # apply survey weights ---------
 
+
 ## add svy_weight_mec back to dataset_final
 dat_weight <- dataset_final %>%
   merge(dataset.complete.raw[,c('svy_weight_mec',"svy_id")], by="svy_id")
@@ -239,8 +240,10 @@ dat_weight <- dataset_final %>%
 df_adjusted <- dat_weight %>%
   group_by(svy_year) %>%
   mutate(
-    scaled_weight = svy_weight_mec / min(svy_weight_mec) # scale by diviing the smallest weight
-  ) %>%
+    # scale by dividing the smallest weight
+    scaled_weight = svy_weight_mec / min(svy_weight_mec), 
+    # calculate prob. for CV sample w correct proportions of population
+    cv_sample_prob = svy_weight_mec/max(svy_weight_mec)) %>% 
   ungroup() %>%
   slice(rep(1:n(), times = scaled_weight))
 
